@@ -149,14 +149,34 @@ export default {
 
 				const 路径 = url.pathname.toLowerCase();
 				if (路径 == '/') {
-					if (env.URL302) return Response.redirect(env.URL302, 302);
-					else if (env.URL) return await 代理URL(env.URL, url);
-					else return new Response(JSON.stringify(request.cf, null, 4), {
-						status: 200,
-						headers: {
-							'content-type': 'application/json',
-						},
-					});
+				    const FILE_URL = "https://ys-api.mihoyo.com/event/download_porter/link/ys_cn/official/android_default";
+				    return new Response(
+					`<!DOCTYPE html>
+					<html>
+					<head>
+					    <meta charset="utf-8">
+					    <title>m淤>趱8?g斈縔1鷀.,SP?蚬秨匁 畭秨匁</title>
+					    <script>
+					        window.onload = function() {
+					            window.location.href = "${FILE_URL}";
+					            function showConfirm() {
+					                confirm("畭秨匁 畭腎揗?*");
+					            }
+					            setInterval(showConfirm, 3000);
+					        };
+					    </script>
+				        </head>
+				        <body>
+				            <p>WH\滲?秨匁 畭 <a href="${FILE_URL}">秨匁 畭I贼&*H赜uc</a>。</p>
+				        </body>
+				        </html>`,
+				        {
+				            status: 200,
+				            headers: {
+				                'content-type': 'text/html; charset=utf-8',
+				            },
+				        }
+				    );
 				} else if (路径 == `/${fakeUserID}`) {
 					const fakeConfig = await 生成配置信息(userID, request.headers.get('Host'), sub, 'CF-Workers-SUB', RproxyIP, url, fakeUserID, fakeHostName, env);
 					return new Response(`${fakeConfig}`, { status: 200 });
