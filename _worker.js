@@ -89,32 +89,20 @@ export default {
             proxyIPs = await 整理(proxyIP);
             proxyIP = proxyIPs[Math.floor(Math.random() * proxyIPs.length)];
 
-            socks5Address = env.HTTP || env.SOCKS5 || socks5Address;
-            socks5s = await 整理(socks5Address);
-            socks5Address = socks5s[Math.floor(Math.random() * socks5s.length)];
-            enableHttp = env.HTTP ? true : socks5Address.toLowerCase().includes('http://');
-            socks5Address = socks5Address.split('//')[1] || socks5Address;
-            if (env.GO2SOCKS5) go2Socks5s = await 整理(env.GO2SOCKS5);
-            if (env.CFPORTS) httpsPorts = await 整理(env.CFPORTS);
-            if (env.BAN) banHosts = await 整理(env.BAN);
-            if (socks5Address) {
-                try {
-                    parsedSocks5Address = socks5AddressParser(socks5Address);
-                    RproxyIP = env.RPROXYIP || 'false';
-                    enableSocks = true;
-                } catch (err) {
-                    let e = err;
-                    console.log(e.toString());
-                    RproxyIP = env.RPROXYIP || !proxyIP ? 'true' : 'false';
-                    enableSocks = false;
-                }
-            } else {
-                RproxyIP = env.RPROXYIP || !proxyIP ? 'true' : 'false';
+            // ==================== 修改开始 ====================
+            
+            // 新增：判断请求方法。如果是 POST，则认为是 xhttp 数据请求，
+            // 直接交由新的 handleVlessXhttp 函数处理。
+            if (request.method === 'POST') {
+                return await handleVlessXhttp(request);
             }
 
+            // ==================== 修改结束 ====================
+
             const upgradeHeader = request.headers.get('Upgrade');
-            const url = new URL(request.url);
+            // 如果不是 WebSocket 升级请求 (即所有 GET 请求), 则执行订阅服务逻辑
             if (!upgradeHeader || upgradeHeader !== 'websocket') {
+                const url = new URL(request.url);
                 if (env.ADD) addresses = await 整理(env.ADD);
                 if (env.ADDAPI) addressesapi = await 整理(env.ADDAPI);
                 if (env.ADDNOTLS) addressesnotls = await 整理(env.ADDNOTLS);
@@ -175,7 +163,6 @@ export default {
                     await sendMessage(`#获取订阅 ${FileName}`, request.headers.get('CF-Connecting-IP'), `UA: ${UA}</tg-spoiler>\n域名: ${url.hostname}\n<tg-spoiler>入口: ${url.pathname + url.search}</tg-spoiler>`);
                     const 维列斯Config = await 生成配置信息(userID, request.headers.get('Host'), sub, UA, RproxyIP, url, fakeUserID, fakeHostName, env);
                     const now = Date.now();
-                    //const timestamp = Math.floor(now / 1000);
                     const today = new Date(now);
                     today.setHours(0, 0, 0, 0);
                     const UD = Math.floor(((now - today.getTime()) / 86400000) * 24 * 1099511627776 / 2);
@@ -198,7 +185,6 @@ export default {
                             status: 200,
                             headers: {
                                 "Content-Disposition": `attachment; filename=${FileName}; filename*=utf-8''${encodeURIComponent(FileName)}`,
-                                //"Content-Type": "text/plain;charset=utf-8",
                                 "Profile-Update-Interval": "6",
                                 "Subscription-Userinfo": `upload=${pagesSum}; download=${workersSum}; total=${total}; expire=${expire}`,
                             }
@@ -210,48 +196,12 @@ export default {
                     else return new Response('不用怀疑！你UUID就是错的！！！', { status: 404 });
                 }
             } else {
-                socks5Address = url.searchParams.get('socks5') || socks5Address;
-                if (new RegExp('/socks5=', 'i').test(url.pathname)) socks5Address = url.pathname.split('5=')[1];
-                else if (new RegExp('/socks://', 'i').test(url.pathname) || new RegExp('/socks5://', 'i').test(url.pathname) || new RegExp('/http://', 'i').test(url.pathname)) {
-                    enableHttp = url.pathname.includes('http://');
-                    socks5Address = url.pathname.split('://')[1].split('#')[0];
-                    if (socks5Address.includes('@')) {
-                        let userPassword = socks5Address.split('@')[0].replaceAll('%3D', '=');
-                        const base64Regex = /^(?:[A-Z0-9+/]{4})*(?:[A-Z0-9+/]{2}==|[A-Z0-9+/]{3}=)?$/i;
-                        if (base64Regex.test(userPassword) && !userPassword.includes(':')) userPassword = atob(userPassword);
-                        socks5Address = `${userPassword}@${socks5Address.split('@')[1]}`;
-                    }
-                    go2Socks5s = ['all in'];
-                }
-
-                if (socks5Address) {
-                    try {
-                        parsedSocks5Address = socks5AddressParser(socks5Address);
-                        enableSocks = true;
-                    } catch (err) {
-                        let e = err;
-                        console.log(e.toString());
-                        enableSocks = false;
-                    }
-                } else {
-                    enableSocks = false;
-                }
-
-                if (url.searchParams.has('proxyip')) {
-                    proxyIP = url.searchParams.get('proxyip');
-                    enableSocks = false;
-                } else if (new RegExp('/proxyip=', 'i').test(url.pathname)) {
-                    proxyIP = url.pathname.toLowerCase().split('/proxyip=')[1];
-                    enableSocks = false;
-                } else if (new RegExp('/proxyip.', 'i').test(url.pathname)) {
-                    proxyIP = `proxyip.${url.pathname.toLowerCase().split("/proxyip.")[1]}`;
-                    enableSocks = false;
-                } else if (new RegExp('/pyip=', 'i').test(url.pathname)) {
-                    proxyIP = url.pathname.toLowerCase().split('/pyip=')[1];
-                    enableSocks = false;
-                }
-
-                return await 维列斯OverWSHandler(request);
+                // 原有的 WebSocket 逻辑。根据前序步骤，相关函数已删除。
+                // 返回一个错误提示，表示此配置不再支持 WebSocket。
+                return new Response('WebSocket protocol no longer supported in this configuration.', { 
+                    status: 426, // 426 Upgrade Required
+                    headers: { 'Upgrade': 'xhttp/1.1' } // 暗示客户端应使用 xhttp
+                });
             }
         } catch (err) {
             let e = err;
@@ -260,274 +210,11 @@ export default {
     },
 };
 
-async function 维列斯OverWSHandler(request) {
 
-    // @ts-ignore
-    const webSocketPair = new WebSocketPair();
-    const [client, webSocket] = Object.values(webSocketPair);
 
-    // 接受 WebSocket 连接
-    webSocket.accept();
 
-    let address = '';
-    let portWithRandomLog = '';
-    // 日志函数，用于记录连接信息
-    const log = (/** @type {string} */ info, /** @type {string | undefined} */ event) => {
-        console.log(`[${address}:${portWithRandomLog}] ${info}`, event || '');
-    };
-    // 获取早期数据头部，可能包含了一些初始化数据
-    const earlyDataHeader = request.headers.get('sec-websocket-protocol') || '';
 
-    // 创建一个可读的 WebSocket 流，用于接收客户端数据
-    const readableWebSocketStream = makeReadableWebSocketStream(webSocket, earlyDataHeader, log);
 
-    // 用于存储远程 Socket 的包装器
-    let remoteSocketWapper = {
-        value: null,
-    };
-    // 标记是否为 DNS 查询
-    let isDns = false;
-
-    // WebSocket 数据流向远程服务器的管道
-    readableWebSocketStream.pipeTo(new WritableStream({
-        async write(chunk, controller) {
-            if (isDns) {
-                // 如果是 DNS 查询，调用 DNS 处理函数
-                return await handleDNSQuery(chunk, webSocket, null, log);
-            }
-            if (remoteSocketWapper.value) {
-                // 如果已有远程 Socket，直接写入数据
-                const writer = remoteSocketWapper.value.writable.getWriter()
-                await writer.write(chunk);
-                writer.releaseLock();
-                return;
-            }
-
-            // 处理 维列斯 协议头部
-            const {
-                hasError,
-                message,
-                addressType,
-                portRemote = 443,
-                addressRemote = '',
-                rawDataIndex,
-                维列斯Version = new Uint8Array([0, 0]),
-                isUDP,
-            } = process维列斯Header(chunk, userID);
-            // 设置地址和端口信息，用于日志
-            address = addressRemote;
-            portWithRandomLog = `${portRemote}--${Math.random()} ${isUDP ? 'udp ' : 'tcp '} `;
-            if (hasError) {
-                // 如果有错误，抛出异常
-                throw new Error(message);
-                return;
-            }
-            // 如果是 UDP 且端口不是 DNS 端口（53），则关闭连接
-            if (isUDP) {
-                if (portRemote === 53) {
-                    isDns = true;
-                } else {
-                    throw new Error('UDP 代理仅对 DNS（53 端口）启用');
-                    return;
-                }
-            }
-            // 构建 维列斯 响应头部
-            const 维列斯ResponseHeader = new Uint8Array([维列斯Version[0], 0]);
-            // 获取实际的客户端数据
-            const rawClientData = chunk.slice(rawDataIndex);
-
-            if (isDns) {
-                // 如果是 DNS 查询，调用 DNS 处理函数
-                return handleDNSQuery(rawClientData, webSocket, 维列斯ResponseHeader, log);
-            }
-            // 处理 TCP 出站连接
-            if (!banHosts.includes(addressRemote)) {
-                log(`处理 TCP 出站连接 ${addressRemote}:${portRemote}`);
-                handleTCPOutBound(remoteSocketWapper, addressType, addressRemote, portRemote, rawClientData, webSocket, 维列斯ResponseHeader, log);
-            } else {
-                throw new Error(`黑名单关闭 TCP 出站连接 ${addressRemote}:${portRemote}`);
-            }
-        },
-        close() {
-            log(`readableWebSocketStream 已关闭`);
-        },
-        abort(reason) {
-            log(`readableWebSocketStream 已中止`, JSON.stringify(reason));
-        },
-    })).catch((err) => {
-        log('readableWebSocketStream 管道错误', err);
-    });
-
-    // 返回一个 WebSocket 升级的响应
-    return new Response(null, {
-        status: 101,
-        // @ts-ignore
-        webSocket: client,
-    });
-}
-
-async function handleTCPOutBound(remoteSocket, addressType, addressRemote, portRemote, rawClientData, webSocket, 维列斯ResponseHeader, log,) {
-    async function useSocks5Pattern(address) {
-        if (go2Socks5s.includes(atob('YWxsIGlu')) || go2Socks5s.includes(atob('Kg=='))) return true;
-        return go2Socks5s.some(pattern => {
-            let regexPattern = pattern.replace(/\*/g, '.*');
-            let regex = new RegExp(`^${regexPattern}$`, 'i');
-            return regex.test(address);
-        });
-    }
-
-    async function connectAndWrite(address, port, socks = false, http = false) {
-        log(`connected to ${address}:${port}`);
-        //if (/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?).){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(address)) address = `${atob('d3d3Lg==')}${address}${atob('LmlwLjA5MDIyNy54eXo=')}`;
-        // 先确定连接方式，再创建连接
-        const tcpSocket = socks
-            ? (http ? await httpConnect(address, port, log) : await socks5Connect(addressType, address, port, log))
-            : connect({ hostname: address, port: port });
-
-        remoteSocket.value = tcpSocket;
-        //log(`connected to ${address}:${port}`);
-        const writer = tcpSocket.writable.getWriter();
-        // 首次写入，通常是 TLS 客户端 Hello 消息
-        await writer.write(rawClientData);
-        writer.releaseLock();
-        return tcpSocket;
-    }
-
-    async function nat64() {
-        if (!useSocks) {
-            const nat64Proxyip = `[${await resolveToIPv6(addressRemote)}]`;
-            log(`NAT64 代理连接到 ${nat64Proxyip}:443`);
-            tcpSocket = await connectAndWrite(nat64Proxyip, '443');
-        }
-        tcpSocket.closed.catch(error => {
-            console.log('retry tcpSocket closed error', error);
-        }).finally(() => {
-            safeCloseWebSocket(webSocket);
-        })
-        remoteSocketToWS(tcpSocket, webSocket, 维列斯ResponseHeader, null, log);
-    }
-
-    /**
-     * 重试函数：当 Cloudflare 的 TCP Socket 没有传入数据时，我们尝试重定向 IP
-     * 这可能是因为某些网络问题导致的连接失败
-     */
-    async function retry() {
-        if (enableSocks) {
-            // 如果启用了 SOCKS5，通过 SOCKS5 代理重试连接
-            tcpSocket = await connectAndWrite(addressRemote, portRemote, true, enableHttp);
-        } else {
-            // 否则，尝试使用预设的代理 IP（如果有）或原始地址重试连接
-            if (!proxyIP || proxyIP == '') {
-                proxyIP = atob('UFJPWFlJUC50cDEuMDkwMjI3Lnh5eg==');
-            } else if (proxyIP.includes(']:')) {
-                portRemote = proxyIP.split(']:')[1] || portRemote;
-                proxyIP = proxyIP.split(']:')[0] + "]" || proxyIP;
-            } else if (proxyIP.split(':').length === 2) {
-                portRemote = proxyIP.split(':')[1] || portRemote;
-                proxyIP = proxyIP.split(':')[0] || proxyIP;
-            }
-            if (proxyIP.includes('.tp')) portRemote = proxyIP.split('.tp')[1].split('.')[0] || portRemote;
-            tcpSocket = await connectAndWrite(proxyIP.toLowerCase() || addressRemote, portRemote);
-        }
-        /* 无论重试是否成功，都要关闭 WebSocket（可能是为了重新建立连接）
-        tcpSocket.closed.catch(error => {
-            console.log('retry tcpSocket closed error', error);
-        }).finally(() => {
-            safeCloseWebSocket(webSocket);
-        })
-        */
-        // 建立从远程 Socket 到 WebSocket 的数据流
-        remoteSocketToWS(tcpSocket, webSocket, 维列斯ResponseHeader, nat64, log);
-    }
-
-    let useSocks = false;
-    if (go2Socks5s.length > 0 && enableSocks) useSocks = await useSocks5Pattern(addressRemote);
-    // 首次尝试连接远程服务器
-    let tcpSocket = await connectAndWrite(addressRemote, portRemote, useSocks, enableHttp);
-
-    // 当远程 Socket 就绪时，将其传递给 WebSocket
-    // 建立从远程服务器到 WebSocket 的数据流，用于将远程服务器的响应发送回客户端
-    // 如果连接失败或无数据，retry 函数将被调用进行重试
-    remoteSocketToWS(tcpSocket, webSocket, 维列斯ResponseHeader, retry, log);
-}
-
-function makeReadableWebSocketStream(webSocketServer, earlyDataHeader, log) {
-    // 标记可读流是否已被取消
-    let readableStreamCancel = false;
-
-    // 创建一个新的可读流
-    const stream = new ReadableStream({
-        // 当流开始时的初始化函数
-        start(controller) {
-            // 监听 WebSocket 的消息事件
-            webSocketServer.addEventListener('message', (event) => {
-                // 如果流已被取消，不再处理新消息
-                if (readableStreamCancel) {
-                    return;
-                }
-                const message = event.data;
-                // 将消息加入流的队列中
-                controller.enqueue(message);
-            });
-
-            // 监听 WebSocket 的关闭事件
-            // 注意：这个事件意味着客户端关闭了客户端 -> 服务器的流
-            // 但是，服务器 -> 客户端的流仍然打开，直到在服务器端调用 close()
-            // WebSocket 协议要求在每个方向上都要发送单独的关闭消息，以完全关闭 Socket
-            webSocketServer.addEventListener('close', () => {
-                // 客户端发送了关闭信号，需要关闭服务器端
-                safeCloseWebSocket(webSocketServer);
-                // 如果流未被取消，则关闭控制器
-                if (readableStreamCancel) {
-                    return;
-                }
-                controller.close();
-            });
-
-            // 监听 WebSocket 的错误事件
-            webSocketServer.addEventListener('error', (err) => {
-                log('WebSocket 服务器发生错误');
-                // 将错误传递给控制器
-                controller.error(err);
-            });
-
-            // 处理 WebSocket 0-RTT（零往返时间）的早期数据
-            // 0-RTT 允许在完全建立连接之前发送数据，提高了效率
-            const { earlyData, error } = base64ToArrayBuffer(earlyDataHeader);
-            if (error) {
-                // 如果解码早期数据时出错，将错误传递给控制器
-                controller.error(error);
-            } else if (earlyData) {
-                // 如果有早期数据，将其加入流的队列中
-                controller.enqueue(earlyData);
-            }
-        },
-
-        // 当使用者从流中拉取数据时调用
-        pull(controller) {
-            // 这里可以实现反压机制
-            // 如果 WebSocket 可以在流满时停止读取，我们就可以实现反压
-            // 参考：https://streams.spec.whatwg.org/#example-rs-push-backpressure
-        },
-
-        // 当流被取消时调用
-        cancel(reason) {
-            // 流被取消的几种情况：
-            // 1. 当管道的 WritableStream 有错误时，这个取消函数会被调用，所以在这里处理 WebSocket 服务器的关闭
-            // 2. 如果 ReadableStream 被取消，所有 controller.close/enqueue 都需要跳过
-            // 3. 但是经过测试，即使 ReadableStream 被取消，controller.error 仍然有效
-            if (readableStreamCancel) {
-                return;
-            }
-            log(`可读流被取消，原因是 ${reason}`);
-            readableStreamCancel = true;
-            // 安全地关闭 WebSocket
-            safeCloseWebSocket(webSocketServer);
-        }
-    });
-
-    return stream;
-}
 
 // https://xtls.github.io/development/protocols/维列斯.html
 // https://github.com/zizifn/excalidraw-backup/blob/main/v2ray-protocol.excalidraw
@@ -678,82 +365,137 @@ function process维列斯Header(维列斯Buffer, userID) {
     };
 }
 
-async function remoteSocketToWS(remoteSocket, webSocket, 维列斯ResponseHeader, retry, log) {
-    // 将数据从远程服务器转发到 WebSocket
-    let remoteChunkCount = 0;
-    let chunks = [];
-    /** @type {ArrayBuffer | null} */
-    let 维列斯Header = 维列斯ResponseHeader;
-    let hasIncomingData = false; // 检查远程 Socket 是否有传入数据
+/**
+ * 为 xhttp 响应添加伪装头部，模仿正常流量。
+ * @param {Headers} headers 需要添加头部的 Headers 对象。
+ */
+function addXhttpHeaders(headers) {
+    headers.set('Content-Type', 'application/octet-stream');
+    headers.set('Transfer-Encoding', 'chunked');
 
-    // 使用管道将远程 Socket 的可读流连接到一个可写流
-    await remoteSocket.readable
-        .pipeTo(
-            new WritableStream({
-                start() {
-                    // 初始化时不需要任何操作
-                },
-                /**
-                 * 处理每个数据块
-                 * @param {Uint8Array} chunk 数据块
-                 * @param {*} controller 控制器
-                 */
-                async write(chunk, controller) {
-                    hasIncomingData = true; // 标记已收到数据
-                    // remoteChunkCount++; // 用于流量控制，现在似乎不需要了
+    // 根据 xhttp 规范，添加随机长度的 Padding 以对抗指纹识别
+    const paddingSize = Math.floor(Math.random() * 901) + 100; // 随机生成 100-1000 字节
+    const padding = new Uint8Array(paddingSize);
+    crypto.getRandomValues(padding); // 使用加密安全的随机数填充
 
-                    // 检查 WebSocket 是否处于开放状态
-                    if (webSocket.readyState !== WS_READY_STATE_OPEN) {
-                        controller.error(
-                            'webSocket.readyState is not open, maybe close'
-                        );
-                    }
+    // 将 padding 转为十六进制字符串，确保在 HTTP 头部中安全传输
+    const hexPadding = Array.from(padding).map(b => b.toString(16).padStart(2, '0')).join('');
+    headers.set('X-Padding', hexPadding);
+}
 
-                    if (维列斯Header) {
-                        // 如果有 维列斯 响应头部，将其与第一个数据块一起发送
-                        webSocket.send(await new Blob([维列斯Header, chunk]).arrayBuffer());
-                        维列斯Header = null; // 清空头部，之后不再发送
-                    } else {
-                        // 直接发送数据块
-                        // 以前这里有流量控制代码，限制大量数据的发送速率
-                        // 但现在 Cloudflare 似乎已经修复了这个问题
-                        // if (remoteChunkCount > 20000) {
-                        // 	// cf one package is 4096 byte(4kb),  4096 * 20000 = 80M
-                        // 	await delay(1);
-                        // }
-                        webSocket.send(chunk);
-                    }
-                },
-                close() {
-                    // 当远程连接的可读流关闭时
-                    log(`remoteConnection!.readable is close with hasIncomingData is ${hasIncomingData}`);
-                    // 不需要主动关闭 WebSocket，因为这可能导致 HTTP ERR_CONTENT_LENGTH_MISMATCH 问题
-                    // 客户端无论如何都会发送关闭事件
-                    // safeCloseWebSocket(webSocket);
-                },
-                abort(reason) {
-                    // 当远程连接的可读流中断时
-                    console.error(`remoteConnection!.readable abort`, reason);
-                },
-            })
-        )
-        .catch((error) => {
-            // 捕获并记录任何异常
-            console.error(
-                `remoteSocketToWS has exception `,
-                error.stack || error
-            );
-            // 发生错误时安全地关闭 WebSocket
-            safeCloseWebSocket(webSocket);
-        });
+/**
+ * 处理 VLESS over xhttp (stream-up 模式) 的请求。
+ * 此函数是 xhttp 模式的核心。
+ * @param {Request} request 客户端发来的 POST 请求。
+ * @returns {Promise<Response>} 返回给客户端的流式响应。
+ */
+async function handleVlessXhttp(request) {
+    let remoteSocket;
+    let isHeaderParsed = false;
 
-    // 处理 Cloudflare 连接 Socket 的特殊错误情况
-    // 1. Socket.closed 将有错误
-    // 2. Socket.readable 将关闭，但没有任何数据
-    if (hasIncomingData === false && retry) {
-        log(`retry`);
-        retry(); // 调用重试函数，尝试重新建立连接
-    }
+    // 创建一个 TransformStream 用于生成响应体
+    const {
+        readable: responseReadable,
+        writable: responseWritable
+    } = new TransformStream();
+
+    // 此函数负责将远程服务器的数据通过管道回传给客户端
+    const pipeRemoteToClient = async (remoteReadable) => {
+        try {
+            await remoteReadable.pipeTo(responseWritable);
+        } catch (err) {
+            console.error(`[xhttp] 远程数据回传客户端时出错: ${err}`);
+        }
+    };
+
+    // 异步处理客户端发来的请求体（上行数据流）
+    request.body.pipeTo(new WritableStream({
+        async write(chunk, controller) {
+            if (!isHeaderParsed) {
+                isHeaderParsed = true;
+
+                // 1. 从第一个数据块中解析 VLESS 头部
+                const {
+                    hasError,
+                    message,
+                    addressRemote,
+                    portRemote,
+                    rawDataIndex,
+                    维列斯Version
+                } = process维列斯Header(chunk, userID);
+
+                if (hasError) {
+                    controller.error(new Error(message));
+                    return;
+                }
+
+                // 2. 连接到目标服务器
+                try {
+                    console.log(`[xhttp] 正在连接目标: ${addressRemote}:${portRemote}`);
+                    remoteSocket = await connect({
+                        hostname: addressRemote,
+                        port: portRemote
+                    });
+                } catch (err) {
+                    controller.error(new Error(`[xhttp] 连接目标失败: ${err.message}`));
+                    return;
+                }
+
+                // 3. 启动下行数据流：将远程数据回传给客户端
+                pipeRemoteToClient(remoteSocket.readable);
+
+                // 4. 向客户端写入 VLESS 响应头 [版本号, 0x00]
+                const responseWriter = responseWritable.getWriter();
+                await responseWriter.write(new Uint8Array([维列斯Version[0], 0]));
+                responseWriter.releaseLock();
+
+                // 5. 将 VLESS 头部之后的初始数据（如果有）发送到目标服务器
+                const initialPayload = chunk.slice(rawDataIndex);
+                if (initialPayload.length > 0) {
+                    const remoteWriter = remoteSocket.writable.getWriter();
+                    await remoteWriter.write(initialPayload);
+                    remoteWriter.releaseLock();
+                }
+
+            } else {
+                // 后续的数据块，直接写入目标服务器
+                if (remoteSocket) {
+                    const writer = remoteSocket.writable.getWriter();
+                    await writer.write(chunk);
+                    writer.releaseLock();
+                }
+            }
+        },
+        async close() {
+            console.log('[xhttp] 客户端上行数据流关闭。');
+            if (remoteSocket) {
+                const writer = remoteSocket.writable.getWriter();
+                await writer.close();
+                writer.releaseLock();
+            }
+        },
+        async abort(reason) {
+            console.error(`[xhttp] 客户端上行数据流异常中断: ${reason}`);
+            if (remoteSocket) {
+                remoteSocket.close();
+            }
+        }
+    })).catch(err => {
+        console.error(`[xhttp] 处理请求流时出错: ${err}`);
+        if (remoteSocket) {
+            remoteSocket.close();
+        }
+        responseWritable.abort(err.message);
+    });
+
+    // 6. 创建并返回最终的响应对象
+    const headers = new Headers();
+    addXhttpHeaders(headers);
+
+    return new Response(responseReadable, {
+        status: 200,
+        headers: headers
+    });
 }
 
 /**
@@ -807,18 +549,7 @@ function isValidUUID(uuid) {
 const WS_READY_STATE_OPEN = 1;	 // WebSocket 处于开放状态，可以发送和接收消息
 const WS_READY_STATE_CLOSING = 2;  // WebSocket 正在关闭过程中
 
-function safeCloseWebSocket(socket) {
-    try {
-        // 只有在 WebSocket 处于开放或正在关闭状态时才调用 close()
-        // 这避免了在已关闭或连接中的 WebSocket 上调用 close()
-        if (socket.readyState === WS_READY_STATE_OPEN || socket.readyState === WS_READY_STATE_CLOSING) {
-            socket.close();
-        }
-    } catch (error) {
-        // 记录任何可能发生的错误，虽然按照规范不应该有错误
-        console.error('safeCloseWebSocket error', error);
-    }
-}
+
 
 // 预计算 0-255 每个字节的十六进制表示
 const byteToHex = [];
